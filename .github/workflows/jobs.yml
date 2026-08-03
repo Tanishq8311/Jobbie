@@ -10,6 +10,10 @@ on:
         description: "Print jobs in the log instead of sending"
         type: boolean
         default: false
+      file_id:
+        description: "Telegram file_id of a resume PDF (set by the worker)"
+        type: string
+        default: ""
 
 concurrency:
   group: jobbie
@@ -36,6 +40,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          FILE_ID: ${{ inputs.file_id }}
 
       # seen-jobs + profile live in the repo so runs stay stateless
       - run: |

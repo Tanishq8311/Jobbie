@@ -35,7 +35,8 @@ log = logging.getLogger("jobbie")
 
 # Skill keywords found in the resume decide which query buckets are searched.
 SKILL_BUCKETS = {
-    "backend": ["node", "express", "typescript", "microservice", "rest api", "golang", "java"],
+    "backend": ["node", "express", "typescript", "microservice", "rest api", "golang"],
+    "java": ["java", "spring"],
     "fullstack": ["react", "next.js", "frontend", "tailwind"],
     "data": ["spark", "pyspark", "databricks", "data factory", "etl", "airflow"],
     "platform": ["kubernetes", "docker", "aws", "azure", "distributed", "cloudflare"],
@@ -43,6 +44,7 @@ SKILL_BUCKETS = {
 }
 BUCKET_QUERIES = {
     "backend": "node.js backend developer",
+    "java": "java backend developer",
     "fullstack": "full stack developer react node.js",
     "data": "data engineer spark",
     "platform": "platform engineer microservices",
@@ -127,34 +129,24 @@ def parse_resume(pdf_bytes, old_profile):
     return profile
 
 
-def check_updates(state, profile):
-    """Poll getUpdates once: a PDF sent to the bot becomes the new profile."""
-    resp = tg("getUpdates", offset=state.get("offset", 0) + 1, timeout=0)
-    if not resp or not resp.get("ok"):
+def intake_resume(profile):
+    """The webhook worker dispatches this run with the PDF's file_id as input."""
+    file_id = env("FILE_ID")
+    if not file_id:
         return profile
-    for u in resp["result"]:
-        state["offset"] = max(state.get("offset", 0), u["update_id"])
-        msg = u.get("message") or {}
-        if str(msg.get("chat", {}).get("id")) != env("TELEGRAM_CHAT_ID"):
-            continue
-        doc = msg.get("document") or {}
-        if doc.get("file_name", "").lower().endswith(".pdf"):
-            f = tg("getFile", file_id=doc["file_id"])
-            if not f or not f.get("ok"):
-                continue
-            url = f"https://api.telegram.org/file/bot{env('TELEGRAM_BOT_TOKEN')}/{f['result']['file_path']}"
-            try:
-                profile = parse_resume(requests.get(url, timeout=TIMEOUT).content, profile)
-                save_json(PROFILE_PATH, profile)
-                send("✅ <b>Resume received.</b>\nSkills: " + html.escape(", ".join(profile["skills"]) or "none found")
-                     + "\nSearching: " + html.escape("; ".join(profile["queries"]))
-                     + "\n\n(Pitch line for referral messages is kept as-is — edit data/profile.json to change it.)")
-            except Exception as e:  # a bad PDF must not kill the job run
-                log.error("resume parse failed: %s", e)
-                send("⚠️ Couldn't read that PDF — try re-exporting it.")
-        elif msg.get("text", "").startswith("/start"):
-            send("👋 I'm Jobbie. Send me your resume as a PDF and I'll tailor job alerts to it. "
-                 "Alerts go out twice a day.")
+    f = tg("getFile", file_id=file_id)
+    if not f or not f.get("ok"):
+        return profile
+    url = f"https://api.telegram.org/file/bot{env('TELEGRAM_BOT_TOKEN')}/{f['result']['file_path']}"
+    try:
+        profile = parse_resume(requests.get(url, timeout=TIMEOUT).content, profile)
+        save_json(PROFILE_PATH, profile)
+        send("✅ <b>Resume received.</b>\nSkills: " + html.escape(", ".join(profile["skills"]) or "none found")
+             + "\nSearching: " + html.escape("; ".join(profile["queries"]))
+             + "\n\n(Pitch line for referral messages is kept as-is — edit data/profile.json to change it.)")
+    except Exception as e:  # a bad PDF must not kill the job run
+        log.error("resume parse failed: %s", e)
+        send("⚠️ Couldn't read that PDF — try re-exporting it.")
     return profile
 
 
@@ -232,10 +224,9 @@ def main(dry=False):
     profile = load_json(PROFILE_PATH, None)
 
     if not dry:
-        profile = check_updates(state, profile)
+        profile = intake_resume(profile)
     if not profile:
         send("👋 No profile yet — send me your resume as a PDF to get started.", dry)
-        save_json(STATE_PATH, state)
         return
 
     pool = profile["queries"]

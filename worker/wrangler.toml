@@ -1,0 +1,9 @@
+name = "jobbie"
+main = "telegram.js"
+compatibility_date = "2025-01-01"
+
+# Secrets (npx wrangler secret put <NAME>):
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_WEBHOOK_SECRET, GITHUB_TOKEN
+
+[vars]
+GITHUB_REPO = "Tanishq8311/Jobbie"
