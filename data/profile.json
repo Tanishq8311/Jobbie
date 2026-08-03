@@ -7,18 +7,186 @@
   "platform engineer microservices",
   "ai engineer llm"
  ],
- "skills": ["node.js", "typescript", "python", "microservices", "react", "cassandra", "redis", "spark", "azure", "llm"],
- "pitch": "I'm a backend engineer at Paisabazaar (PB Fintech), building Node.js/TypeScript microservices for an NSE-connected bonds platform — payments, settlements, and exchange integrations handling 100M+ INR monthly.",
+ "skills": [
+  "node.js",
+  "typescript",
+  "python",
+  "microservices",
+  "react",
+  "cassandra",
+  "redis",
+  "spark",
+  "azure",
+  "llm"
+ ],
+ "pitch": "I'm a backend engineer at Paisabazaar (PB Fintech), building Node.js/TypeScript microservices for an NSE-connected bonds platform \u2014 payments, settlements, and exchange integrations handling 100M+ INR monthly.",
  "max_months": 36,
  "companies": [
-  {"board": "greenhouse", "slug": "razorpaysoftwareprivatelimited", "name": "Razorpay"},
-  {"board": "greenhouse", "slug": "groww", "name": "Groww"},
-  {"board": "greenhouse", "slug": "phonepe", "name": "PhonePe"},
-  {"board": "greenhouse", "slug": "coinbase", "name": "Coinbase"},
-  {"board": "greenhouse", "slug": "stripe", "name": "Stripe"},
-  {"board": "lever", "slug": "cred", "name": "CRED"},
-  {"board": "lever", "slug": "paytm", "name": "Paytm"},
-  {"board": "lever", "slug": "meesho", "name": "Meesho"}
+  {
+   "board": "greenhouse",
+   "slug": "razorpaysoftwareprivatelimited",
+   "name": "Razorpay"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "groww",
+   "name": "Groww"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "phonepe",
+   "name": "PhonePe"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "slice",
+   "name": "slice"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "coinbase",
+   "name": "Coinbase"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "stripe",
+   "name": "Stripe"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "databricks",
+   "name": "Databricks"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "mongodb",
+   "name": "MongoDB"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "elastic",
+   "name": "Elastic"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "gitlab",
+   "name": "GitLab"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "datadog",
+   "name": "Datadog"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "twilio",
+   "name": "Twilio"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "airbnb",
+   "name": "Airbnb"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "figma",
+   "name": "Figma"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "vercel",
+   "name": "Vercel"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "cockroachlabs",
+   "name": "CockroachDB"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "clickhouse",
+   "name": "ClickHouse"
+  },
+  {
+   "board": "greenhouse",
+   "slug": "starburst",
+   "name": "Starburst"
+  },
+  {
+   "board": "lever",
+   "slug": "cred",
+   "name": "CRED"
+  },
+  {
+   "board": "lever",
+   "slug": "paytm",
+   "name": "Paytm"
+  },
+  {
+   "board": "lever",
+   "slug": "meesho",
+   "name": "Meesho"
+  },
+  {
+   "board": "ashby",
+   "slug": "navi",
+   "name": "Navi"
+  },
+  {
+   "board": "ashby",
+   "slug": "atlan",
+   "name": "Atlan"
+  },
+  {
+   "board": "ashby",
+   "slug": "sarvam",
+   "name": "Sarvam AI"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Swiggy",
+   "name": "Swiggy"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Freshworks",
+   "name": "Freshworks"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Unacademy",
+   "name": "Unacademy"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Upstox",
+   "name": "Upstox"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Whatfix",
+   "name": "Whatfix"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Mindtickle",
+   "name": "Mindtickle"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "ServiceNow",
+   "name": "ServiceNow"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Visa",
+   "name": "Visa"
+  },
+  {
+   "board": "smartrecruiters",
+   "slug": "Uber",
+   "name": "Uber"
+  }
  ],
  "updated": "2026-08-04"
 }

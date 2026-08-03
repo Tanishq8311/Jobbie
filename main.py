@@ -54,11 +54,14 @@ BUCKET_QUERIES = {
 TITLE_EXCLUDE = re.compile(
     r"(?i)\b(senior|sr\.?|staff|principal|lead|architect|manager|head|director|vp|"
     r"intern(ship)?|fresher|trainee|campus|apprentice|"
-    r"\.net|php|wordpress|salesforce|sap|drupal)\b"
+    r"\.net|php|wordpress|salesforce|sap|drupal|"
+    # "engineer" titles that are not software engineering
+    r"sales|solution|support|delivery|network|field|customer|success|account|"
+    r"specialist|consultant|analyst|recruiter|marketing|design|hardware|mechanical)\b"
 )
 # Company career boards list every role incl. sales/HR — keep only tech ones.
 TECH_TITLE = re.compile(
-    r"(?i)\b(engineer|developer|sde|software|backend|full.?stack|data|platform|devops|sre|ai|ml)\b"
+    r"(?i)\b(engineer|developer|sde|software|backend|full.?stack|data|platform|devops|sre)\b"
 )
 INDIA_LOC = re.compile(
     r"(?i)(india|bengaluru|bangalore|gurugram|gurgaon|hyderabad|mumbai|pune|noida|delhi|chennai|jaipur|remote)"
@@ -252,18 +255,32 @@ def fetch_boards(profile):
     """
     jobs = []
     for c in profile.get("companies", []):
-        if c["board"] == "greenhouse":
+        board = c["board"]
+        if board == "greenhouse":
             resp = _req("GET", f"https://boards-api.greenhouse.io/v1/boards/{c['slug']}/jobs")
             found = [{"title": it.get("title") or "",
                       "location": (it.get("location") or {}).get("name") or "",
                       "url": it.get("absolute_url") or "", "id": str(it.get("id", ""))}
                      for it in (resp or {}).get("jobs", [])]
-        else:  # lever
+        elif board == "lever":
             resp = _req("GET", f"https://api.lever.co/v0/postings/{c['slug']}?mode=json")
             found = [{"title": it.get("text") or "",
                       "location": (it.get("categories") or {}).get("location") or "",
                       "url": it.get("hostedUrl") or "", "id": str(it.get("id", ""))}
                      for it in (resp or [])]
+        elif board == "ashby":
+            resp = _req("GET", f"https://api.ashbyhq.com/posting-api/job-board/{c['slug']}")
+            found = [{"title": it.get("title") or "", "location": it.get("location") or "",
+                      "url": it.get("jobUrl") or "", "id": str(it.get("id", ""))}
+                     for it in (resp or {}).get("jobs", [])]
+        else:  # smartrecruiters
+            resp = _req("GET", f"https://api.smartrecruiters.com/v1/companies/{c['slug']}/postings",
+                        params={"limit": 100})
+            found = [{"title": it.get("name") or "",
+                      "location": (it.get("location") or {}).get("city") or "",
+                      "url": f"https://jobs.smartrecruiters.com/{c['slug']}/{it.get('id')}",
+                      "id": str(it.get("id", ""))}
+                     for it in (resp or {}).get("content", [])]
         for f in found:
             if TECH_TITLE.search(f["title"]) and INDIA_LOC.search(f["location"] or "india"):
                 jobs.append({**f, "company": c["name"], "via": f"{c['name']} careers",
@@ -279,11 +296,19 @@ def dedupe_key(job):
     return sha1(f"{job['title'].lower().strip()}|{job['company'].lower().strip()}".encode()).hexdigest()[:16]
 
 
+# Boards put the ask in the title: "SRE (4 to 8 years)", "Dev 5+ YOE".
+TITLE_YEARS = re.compile(r"(?i)(\d{1,2})\s*(?:\+|to|-|–)?\s*(?:\d{1,2})?\s*(?:\+)?\s*(?:years?|yrs?|yoe)")
+
+
 def job_ok(job, profile):
     if not job["url"] or TITLE_EXCLUDE.search(job["title"]):
         return False
-    m = job["min_months"]
-    return m is None or m <= profile.get("max_months", 36)
+    max_yrs = profile.get("max_months", 36) / 12
+    m = TITLE_YEARS.search(job["title"])
+    if m and int(m.group(1)) > max_yrs:
+        return False
+    months = job["min_months"]
+    return months is None or months <= profile.get("max_months", 36)
 
 
 # ---------------- message ----------------
@@ -367,6 +392,10 @@ def selfcheck():
     assert job_ok(ok, p)
     assert not job_ok({**ok, "title": "Senior Backend Engineer"}, p), "senior must be excluded"
     assert not job_ok({**ok, "min_months": 60}, p), "5y experience must be excluded"
+    assert not job_ok({**ok, "title": "SRE (4 to 8 years)"}, p), "years-in-title must be read"
+    assert not job_ok({**ok, "title": "Backend Dev 5+ YOE"}, p)
+    assert job_ok({**ok, "title": "Backend Engineer (2-4 years)"}, p), "2-4y is in range"
+    assert not job_ok({**ok, "title": "Sales Engineer"}, p), "non-SWE engineer excluded"
     assert not job_ok({**ok, "url": ""}, p), "no apply link must be excluded"
     assert "Acme" in referral_text(ok, p) and "[Name]" in referral_text(ok, p)
     assert "<pre>" in job_message(ok, p) and "linkedin.com/search" in job_message(ok, p)
