@@ -163,8 +163,8 @@ def check_updates(state, profile):
 def fetch_jsearch(query):
     try:
         r = requests.get(
-            "https://jsearch.p.rapidapi.com/search",
-            params={"query": f"{query} in India", "page": 1, "num_pages": 1,
+            "https://jsearch.p.rapidapi.com/search-v2",
+            params={"query": f"{query} in India", "num_pages": 1,
                     "date_posted": "3days", "country": "in"},
             headers={"X-RapidAPI-Key": env("RAPIDAPI_KEY"),
                      "X-RapidAPI-Host": "jsearch.p.rapidapi.com"},
@@ -173,7 +173,8 @@ def fetch_jsearch(query):
         if r.status_code != 200:
             log.error("jsearch %d: %s", r.status_code, r.text[:200])
             return []
-        items = r.json().get("data") or []
+        data = r.json().get("data") or {}
+        items = data.get("jobs", []) if isinstance(data, dict) else data  # v2 nests under data.jobs
     except (requests.RequestException, ValueError) as e:
         log.error("jsearch failed: %s", e)
         return []
