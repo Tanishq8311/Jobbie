@@ -1,0 +1,13 @@
+{
+ "queries": [
+  "node.js backend developer",
+  "full stack developer react node.js",
+  "data engineer spark",
+  "platform engineer microservices",
+  "ai engineer llm"
+ ],
+ "skills": ["node.js", "typescript", "python", "microservices", "react", "cassandra", "redis", "spark", "azure", "llm"],
+ "pitch": "I'm a backend engineer at Paisabazaar (PB Fintech), building Node.js/TypeScript microservices for an NSE-connected bonds platform — payments, settlements, and exchange integrations handling 100M+ INR monthly.",
+ "max_months": 36,
+ "updated": "2026-08-04"
+}
