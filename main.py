@@ -4,7 +4,7 @@ Each run: pick up any resume PDF sent to the bot (updates the search profile),
 query JSearch (RapidAPI, free 200 req/mo) for new postings, dedupe against
 data/state.json, and send each new job to Telegram with apply link, LinkedIn
 people-search links (recruiters/engineers at that company), and a tap-to-copy
-referral message. No LLM anywhere — resume parsing is keyword matching.
+referral message. Resume parsing is keyword matching — no external service.
 
 Usage: python main.py [--dry-run] | python main.py selfcheck
 """
@@ -116,13 +116,13 @@ def send(text, dry=False):
         return True
     ok = tg("sendMessage", chat_id=env("TELEGRAM_CHAT_ID"), text=text,
             parse_mode="HTML", disable_web_page_preview=True)
-    if ok is None:  # stockie's trick: malformed HTML -> resend plain
+    if ok is None:  # Telegram 400s on malformed HTML -> resend as plain text
         ok = tg("sendMessage", chat_id=env("TELEGRAM_CHAT_ID"),
                 text=re.sub(r"<[^>]+>", "", html.unescape(text)))
     return ok is not None
 
 
-# ---------------- resume intake (no LLM: keyword matching) ----------------
+# ---------------- resume intake (keyword matching) ----------------
 
 def parse_resume(pdf_bytes, old_profile):
     from pypdf import PdfReader  # only needed when a resume is actually uploaded

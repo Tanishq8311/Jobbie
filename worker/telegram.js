@@ -2,8 +2,8 @@
 //
 // Instant answers happen here (/help, /profile). Anything heavy — JSearch
 // queries, resume PDF parsing — is dispatched to the GitHub Actions workflow,
-// which replies to Telegram itself a minute later. Same split as stockie:
-// a free Worker gets ~10ms of CPU, Python in Actions gets minutes.
+// which replies to Telegram itself a minute later. The split is a CPU budget:
+// a free Worker gets ~10ms per request, Python in Actions gets minutes.
 //
 // SINGLE USER BY DESIGN: updates from any other chat are silently dropped.
 
