@@ -53,7 +53,15 @@ BUCKET_QUERIES = {
 
 TITLE_EXCLUDE = re.compile(
     r"(?i)\b(senior|sr\.?|staff|principal|lead|architect|manager|head|director|vp|"
-    r"intern(ship)?|\.net|php|wordpress|salesforce|sap|drupal)\b"
+    r"intern(ship)?|fresher|trainee|campus|apprentice|"
+    r"\.net|php|wordpress|salesforce|sap|drupal)\b"
+)
+# Company career boards list every role incl. sales/HR — keep only tech ones.
+TECH_TITLE = re.compile(
+    r"(?i)\b(engineer|developer|sde|software|backend|full.?stack|data|platform|devops|sre|ai|ml)\b"
+)
+INDIA_LOC = re.compile(
+    r"(?i)(india|bengaluru|bangalore|gurugram|gurgaon|hyderabad|mumbai|pune|noida|delhi|chennai|jaipur|remote)"
 )
 
 
@@ -150,26 +158,32 @@ def intake_resume(profile):
     return profile
 
 
-# ---------------- jobs (JSearch) ----------------
+# ---------------- job sources ----------------
+# All free official APIs. Each fetcher returns [] instantly when its key is
+# missing, so adding a source is just adding a key to .env / repo secrets.
+
+def _req(method, url, **kw):
+    try:
+        r = requests.request(method, url, timeout=TIMEOUT, **kw)
+        if r.status_code != 200:
+            log.error("%s %d: %s", url.split("/")[2], r.status_code, r.text[:150])
+            return None
+        return r.json()
+    except (requests.RequestException, ValueError) as e:
+        log.error("%s failed: %s", url.split("/")[2], e)
+        return None
+
 
 def fetch_jsearch(query):
-    try:
-        r = requests.get(
-            "https://jsearch.p.rapidapi.com/search-v2",
-            params={"query": f"{query} in India", "num_pages": 1,
-                    "date_posted": "3days", "country": "in"},
-            headers={"X-RapidAPI-Key": env("RAPIDAPI_KEY"),
-                     "X-RapidAPI-Host": "jsearch.p.rapidapi.com"},
-            timeout=TIMEOUT,
-        )
-        if r.status_code != 200:
-            log.error("jsearch %d: %s", r.status_code, r.text[:200])
-            return []
-        data = r.json().get("data") or {}
-        items = data.get("jobs", []) if isinstance(data, dict) else data  # v2 nests under data.jobs
-    except (requests.RequestException, ValueError) as e:
-        log.error("jsearch failed: %s", e)
+    if not env("RAPIDAPI_KEY"):
         return []
+    resp = _req("GET", "https://jsearch.p.rapidapi.com/search-v2",
+                params={"query": f"{query} in India", "num_pages": 1,
+                        "date_posted": "3days", "country": "in"},
+                headers={"X-RapidAPI-Key": env("RAPIDAPI_KEY"),
+                         "X-RapidAPI-Host": "jsearch.p.rapidapi.com"})
+    data = (resp or {}).get("data") or {}
+    items = data.get("jobs", []) if isinstance(data, dict) else data  # v2 nests under data.jobs
     jobs = []
     for it in items:
         title, company = it.get("job_title") or "", it.get("employer_name") or ""
@@ -182,6 +196,87 @@ def fetch_jsearch(query):
             "min_months": (it.get("job_required_experience") or {}).get("required_experience_in_months"),
         })
     return jobs
+
+
+def fetch_adzuna(query):
+    if not env("ADZUNA_APP_ID"):
+        return []
+    resp = _req("GET", "https://api.adzuna.com/v1/api/jobs/in/search/1",
+                params={"app_id": env("ADZUNA_APP_ID"), "app_key": env("ADZUNA_APP_KEY"),
+                        "what": query, "max_days_old": 3, "results_per_page": 20,
+                        "sort_by": "date"})
+    return [{
+        "id": str(it.get("id", "")), "title": it.get("title") or "",
+        "company": (it.get("company") or {}).get("display_name") or "",
+        "location": (it.get("location") or {}).get("display_name") or "India",
+        "url": it.get("redirect_url") or "", "via": "Adzuna", "min_months": None,
+    } for it in (resp or {}).get("results", [])]
+
+
+def fetch_jooble(query):
+    if not env("JOOBLE_KEY"):
+        return []
+    resp = _req("POST", f"https://jooble.org/api/{env('JOOBLE_KEY')}",
+                json={"keywords": query, "location": "India"})
+    return [{
+        "id": str(it.get("id", "")), "title": it.get("title") or "",
+        "company": it.get("company") or "",
+        "location": it.get("location") or "India",
+        "url": it.get("link") or "", "via": "Jooble", "min_months": None,
+    } for it in (resp or {}).get("jobs", [])[:20]]
+
+
+def fetch_remotive(query):
+    # Keyless. Remote roles only — keep the ones open to India.
+    resp = _req("GET", "https://remotive.com/api/remote-jobs",
+                params={"search": query, "limit": 20})
+    jobs = []
+    for it in (resp or {}).get("jobs", []):
+        loc = (it.get("candidate_required_location") or "").lower()
+        if not any(x in loc for x in ("india", "worldwide", "anywhere")):
+            continue
+        jobs.append({
+            "id": str(it.get("id", "")), "title": it.get("title") or "",
+            "company": it.get("company_name") or "",
+            "location": f"Remote ({it.get('candidate_required_location')})",
+            "url": it.get("url") or "", "via": "Remotive", "min_months": None,
+        })
+    return jobs
+
+
+def fetch_boards(profile):
+    """Watched companies' own career pages via Greenhouse/Lever public APIs.
+
+    Free and unlimited — these are the same JSON feeds the career pages use.
+    Runs once per run (not per query): a board lists everything it has.
+    """
+    jobs = []
+    for c in profile.get("companies", []):
+        if c["board"] == "greenhouse":
+            resp = _req("GET", f"https://boards-api.greenhouse.io/v1/boards/{c['slug']}/jobs")
+            found = [{"title": it.get("title") or "",
+                      "location": (it.get("location") or {}).get("name") or "",
+                      "url": it.get("absolute_url") or "", "id": str(it.get("id", ""))}
+                     for it in (resp or {}).get("jobs", [])]
+        else:  # lever
+            resp = _req("GET", f"https://api.lever.co/v0/postings/{c['slug']}?mode=json")
+            found = [{"title": it.get("text") or "",
+                      "location": (it.get("categories") or {}).get("location") or "",
+                      "url": it.get("hostedUrl") or "", "id": str(it.get("id", ""))}
+                     for it in (resp or [])]
+        for f in found:
+            if TECH_TITLE.search(f["title"]) and INDIA_LOC.search(f["location"] or "india"):
+                jobs.append({**f, "company": c["name"], "via": f"{c['name']} careers",
+                             "min_months": None})
+    return jobs
+
+
+SOURCES = [fetch_jsearch, fetch_adzuna, fetch_jooble, fetch_remotive]
+
+
+def dedupe_key(job):
+    """Same job on two boards must send once: key on title+company, not source id."""
+    return sha1(f"{job['title'].lower().strip()}|{job['company'].lower().strip()}".encode()).hexdigest()[:16]
 
 
 def job_ok(job, profile):
@@ -234,17 +329,26 @@ def main(dry=False):
     queries = [pool[(base + i) % len(pool)] for i in range(min(QUERIES_PER_RUN, len(pool)))]
     log.info("queries: %s", queries)
 
-    fresh = []
+    found = fetch_boards(profile)
     for q in queries:
-        for job in fetch_jsearch(q):
-            if job["id"] not in state["seen"] and job_ok(job, profile) and all(j["id"] != job["id"] for j in fresh):
-                fresh.append(job)
+        for src in SOURCES:
+            found.extend(src(q))
+
+    fresh, batch = [], set()
+    for job in found:
+        key = dedupe_key(job)
+        # job["id"] check keeps pre-multi-source seen entries honoured
+        if key in batch or key in state["seen"] or job["id"] in state["seen"]:
+            continue
+        if job_ok(job, profile):
+            batch.add(key)
+            fresh.append(job)
 
     log.info("%d new jobs", len(fresh))
     today = date.today().isoformat()
     for job in fresh[:MAX_SEND]:
         if send(job_message(job, profile), dry):
-            state["seen"][job["id"]] = today
+            state["seen"][dedupe_key(job)] = today
         time.sleep(1)
     if len(fresh) > MAX_SEND:
         send(f"…and {len(fresh) - MAX_SEND} more new jobs — they'll come in the next run.", dry)
@@ -267,6 +371,9 @@ def selfcheck():
     assert "Acme" in referral_text(ok, p) and "[Name]" in referral_text(ok, p)
     assert "<pre>" in job_message(ok, p) and "linkedin.com/search" in job_message(ok, p)
     assert '"Acme" recruiter' in urllib.parse.unquote(li_people("Acme", "recruiter"))
+    assert dedupe_key(ok) == dedupe_key({**ok, "id": "different", "via": "Adzuna"}), \
+        "same title+company from two boards must dedupe"
+    assert dedupe_key(ok) != dedupe_key({**ok, "company": "Other"})
     print("selfcheck OK")
 
 
