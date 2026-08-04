@@ -300,6 +300,13 @@ def dedupe_key(job):
 TITLE_YEARS = re.compile(r"(?i)(\d{1,2})\s*(?:\+|to|-|–)?\s*(?:\d{1,2})?\s*(?:\+)?\s*(?:years?|yrs?|yoe)")
 
 
+def match_score(job, profile):
+    """Skill mentions in the title + a bump for watched-company boards."""
+    title = job["title"].lower()
+    return (sum(1 for s in profile.get("skills", []) if s in title)
+            + (1 if job["via"].endswith("careers") else 0))
+
+
 def job_ok(job, profile):
     if not job["url"] or TITLE_EXCLUDE.search(job["title"]):
         return False
@@ -367,12 +374,15 @@ def main(dry=False):
             continue
         if job_ok(job, profile):
             batch.add(key)
+            job["score"] = match_score(job, profile)
             fresh.append(job)
 
+    fresh.sort(key=lambda j: j["score"], reverse=True)  # best matches send first
     log.info("%d new jobs", len(fresh))
     today = date.today().isoformat()
     for job in fresh[:MAX_SEND]:
-        if send(job_message(job, profile), dry):
+        msg = ("⭐ " if job["score"] >= 2 else "") + job_message(job, profile)
+        if send(msg, dry):
             state["seen"][dedupe_key(job)] = today
         time.sleep(1)
     if len(fresh) > MAX_SEND:
@@ -403,6 +413,10 @@ def selfcheck():
     assert dedupe_key(ok) == dedupe_key({**ok, "id": "different", "via": "Adzuna"}), \
         "same title+company from two boards must dedupe"
     assert dedupe_key(ok) != dedupe_key({**ok, "company": "Other"})
+    sp = {**p, "skills": ["node.js", "typescript"]}
+    assert match_score({**ok, "title": "Node.js TypeScript Engineer"}, sp) == 2
+    assert match_score({**ok, "via": "Stripe careers"}, sp) == 1, "watchlist boards get a bump"
+    assert match_score(ok, sp) == 0
     print("selfcheck OK")
 
 
