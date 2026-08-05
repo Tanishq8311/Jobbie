@@ -325,9 +325,12 @@ def log_to_csv(job, today):
     with JOBS_CSV.open("a", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         if new:
-            w.writerow(["date", "title", "company", "location", "score", "via", "url"])
+            w.writerow(["date", "title", "company", "location", "score", "via", "url",
+                        "recruiters", "engineers"])
         w.writerow([today, job["title"], job["company"], job["location"],
-                    job.get("score", 0), job["via"], job["url"]])
+                    job.get("score", 0), job["via"], job["url"],
+                    li_people(job["company"], "recruiter"),
+                    li_people(job["company"], "software engineer")])
 
 
 # ---------------- message ----------------
@@ -438,6 +441,7 @@ def selfcheck():
     log_to_csv(ok, "2026-08-05")
     rows = JOBS_CSV.read_text().splitlines()
     assert len(rows) == 3 and rows[0].startswith("date,") and "Acme" in rows[1], "csv log broken"
+    assert rows[1].count("linkedin.com/search") == 2, "recruiter+engineer links in csv"
     print("selfcheck OK")
 
 
