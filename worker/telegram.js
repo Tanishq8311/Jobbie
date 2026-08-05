@@ -10,6 +10,7 @@
 const HELP = `<b>Jobbie commands</b>
 
 /jobs — hunt for new jobs right now (~1 min)
+/excel — every job sent so far, as a file that opens in Excel
 /profile — what I'm currently searching for you
 📄 Send me a resume PDF — I retune the searches to it
 /help — this list
@@ -60,6 +61,23 @@ async function dispatch(env, inputs = {}) {
   return `GitHub refused (${res.status}): ${esc((await res.text()).slice(0, 200))}`;
 }
 
+async function cmdExcel(env) {
+  const res = await fetch(
+    `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/data/jobs.csv`,
+    { headers: { "User-Agent": "jobbie-worker" } },
+  );
+  if (!res.ok) return "No jobs logged yet — the file appears after the next run that sends a job.";
+  const form = new FormData();
+  form.append("chat_id", env.TELEGRAM_CHAT_ID);
+  form.append("caption", "📊 All jobs so far — opens in Excel.");
+  form.append("document", await res.blob(), "jobs.csv");
+  const sent = await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendDocument`,
+    { method: "POST", body: form },
+  );
+  return sent.ok ? null : "Couldn't send the file, try again in a bit.";
+}
+
 async function cmdProfile(env) {
   const res = await fetch(
     `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/data/profile.json`,
@@ -103,6 +121,9 @@ export default {
             reply = (await dispatch(env))
               || "🔍 Hunting — new jobs land here in ~1 minute.";
             break;
+          case "/excel":
+          case "/csv":
+            reply = await cmdExcel(env); break;
           case "/profile":
             reply = await cmdProfile(env); break;
           default:
