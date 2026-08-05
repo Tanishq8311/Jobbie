@@ -70,7 +70,8 @@ async function cmdExcel(env) {
   if (!res.ok) return "No jobs logged yet — the file appears after the next run that sends a job.";
   const form = new FormData();
   form.append("chat_id", env.TELEGRAM_CHAT_ID);
-  form.append("caption", "📊 All jobs so far — opens in Excel.");
+  form.append("caption", "📊 All jobs so far — opens in Excel."
+    + (env.SHEET_URL ? `\n\n📈 Live tracker: ${env.SHEET_URL}` : ""));
   form.append("document", await res.blob(), "jobs.csv");
   const sent = await fetch(
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendDocument`,
