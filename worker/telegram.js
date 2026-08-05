@@ -63,8 +63,9 @@ async function dispatch(env, inputs = {}) {
 
 async function cmdExcel(env) {
   const res = await fetch(
-    `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/data/jobs.csv`,
-    { headers: { "User-Agent": "jobbie-worker" } },
+    // raw.githubusercontent caches ~5 min; the timestamp param busts it
+    `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/data/jobs.csv?${Date.now()}`,
+    { headers: { "User-Agent": "jobbie-worker" }, cf: { cacheTtl: 0 } },
   );
   if (!res.ok) return "No jobs logged yet — the file appears after the next run that sends a job.";
   const form = new FormData();
@@ -80,8 +81,8 @@ async function cmdExcel(env) {
 
 async function cmdProfile(env) {
   const res = await fetch(
-    `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/data/profile.json`,
-    { headers: { "User-Agent": "jobbie-worker" } },
+    `https://raw.githubusercontent.com/${env.GITHUB_REPO}/main/data/profile.json?${Date.now()}`,
+    { headers: { "User-Agent": "jobbie-worker" }, cf: { cacheTtl: 0 } },
   );
   if (!res.ok) return "Couldn't read the profile right now.";
   const p = await res.json();
