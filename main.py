@@ -9,6 +9,7 @@ referral message. Resume parsing is keyword matching — no external service.
 Usage: python main.py [--dry-run] | python main.py selfcheck
 """
 
+import csv
 import html
 import json
 import logging
@@ -25,6 +26,7 @@ import requests
 
 ROOT = Path(__file__).parent
 STATE_PATH = ROOT / "data" / "state.json"
+JOBS_CSV = ROOT / "data" / "jobs.csv"  # every job ever sent, for a combined view in Excel
 PROFILE_PATH = ROOT / "data" / "profile.json"
 TIMEOUT = 30
 QUERIES_PER_RUN = 3   # ponytail: 3 req x 2 runs/day = 180/mo, fits JSearch free 200
@@ -53,7 +55,7 @@ BUCKET_QUERIES = {
 
 TITLE_EXCLUDE = re.compile(
     r"(?i)\b(senior|sr\.?|staff|principal|lead|architect|manager|head|director|vp|"
-    r"intern(ship)?|fresher|trainee|campus|apprentice|"
+    r"intern(ship)?|trainee|campus|apprentice|"
     r"\.net|php|wordpress|salesforce|sap|drupal|"
     # "engineer" titles that are not software engineering
     r"sales|solution|support|delivery|network|field|customer|success|account|"
@@ -136,7 +138,7 @@ def parse_resume(pdf_bytes, old_profile):
         "updated": date.today().isoformat(),
     })
     profile.setdefault("pitch", "I'm a software engineer with experience in " + ", ".join(skills[:4]) + ".")
-    profile.setdefault("max_months", 36)
+    profile.setdefault("max_months", 24)
     return profile
 
 
@@ -310,12 +312,22 @@ def match_score(job, profile):
 def job_ok(job, profile):
     if not job["url"] or TITLE_EXCLUDE.search(job["title"]):
         return False
-    max_yrs = profile.get("max_months", 36) / 12
+    max_yrs = profile.get("max_months", 24) / 12
     m = TITLE_YEARS.search(job["title"])
     if m and int(m.group(1)) > max_yrs:
         return False
     months = job["min_months"]
-    return months is None or months <= profile.get("max_months", 36)
+    return months is None or months <= profile.get("max_months", 24)
+
+
+def log_to_csv(job, today):
+    new = not JOBS_CSV.exists()
+    with JOBS_CSV.open("a", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        if new:
+            w.writerow(["date", "title", "company", "location", "score", "via", "url"])
+        w.writerow([today, job["title"], job["company"], job["location"],
+                    job.get("score", 0), job["via"], job["url"]])
 
 
 # ---------------- message ----------------
@@ -384,6 +396,8 @@ def main(dry=False):
         msg = ("⭐ " if job["score"] >= 2 else "") + job_message(job, profile)
         if send(msg, dry):
             state["seen"][dedupe_key(job)] = today
+            if not dry:
+                log_to_csv(job, today)
         time.sleep(1)
     if len(fresh) > MAX_SEND:
         send(f"…and {len(fresh) - MAX_SEND} more new jobs — they'll come in the next run.", dry)
@@ -396,15 +410,16 @@ def main(dry=False):
 
 
 def selfcheck():
-    p = {"pitch": "I build Node.js services.", "max_months": 36}
+    p = {"pitch": "I build Node.js services.", "max_months": 24}
     ok = {"id": "x", "title": "Backend Engineer", "company": "Acme", "location": "Remote",
           "url": "https://a.co/1", "via": "LinkedIn", "min_months": 24}
     assert job_ok(ok, p)
     assert not job_ok({**ok, "title": "Senior Backend Engineer"}, p), "senior must be excluded"
-    assert not job_ok({**ok, "min_months": 60}, p), "5y experience must be excluded"
+    assert not job_ok({**ok, "min_months": 36}, p), "3y experience must be excluded"
     assert not job_ok({**ok, "title": "SRE (4 to 8 years)"}, p), "years-in-title must be read"
-    assert not job_ok({**ok, "title": "Backend Dev 5+ YOE"}, p)
-    assert job_ok({**ok, "title": "Backend Engineer (2-4 years)"}, p), "2-4y is in range"
+    assert not job_ok({**ok, "title": "Backend Dev 3+ YOE"}, p)
+    assert job_ok({**ok, "title": "Backend Engineer (2-4 years)"}, p), "min 2y is in range"
+    assert job_ok({**ok, "title": "Backend Engineer - Fresher"}, p), "freshers are fine"
     assert not job_ok({**ok, "title": "Sales Engineer"}, p), "non-SWE engineer excluded"
     assert not job_ok({**ok, "url": ""}, p), "no apply link must be excluded"
     assert "Acme" in referral_text(ok, p) and "[Name]" in referral_text(ok, p)
@@ -417,6 +432,12 @@ def selfcheck():
     assert match_score({**ok, "title": "Node.js TypeScript Engineer"}, sp) == 2
     assert match_score({**ok, "via": "Stripe careers"}, sp) == 1, "watchlist boards get a bump"
     assert match_score(ok, sp) == 0
+    import tempfile
+    globals()["JOBS_CSV"] = Path(tempfile.mkdtemp()) / "jobs.csv"
+    log_to_csv({**ok, "score": 2}, "2026-08-05")
+    log_to_csv(ok, "2026-08-05")
+    rows = JOBS_CSV.read_text().splitlines()
+    assert len(rows) == 3 and rows[0].startswith("date,") and "Acme" in rows[1], "csv log broken"
     print("selfcheck OK")
 
 
