@@ -118,7 +118,9 @@ export default {
         switch (cmd) {
           case "/start":
           case "/help":
-            reply = HELP; break;
+            reply = HELP + (env.SHEET_URL
+              ? `\n\n📈 <a href="${env.SHEET_URL}">Live tracker sheet</a>` : "");
+            break;
           case "/jobs":
             reply = (await dispatch(env))
               || "🔍 Hunting — new jobs land here in ~1 minute.";
